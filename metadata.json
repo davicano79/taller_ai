@@ -1,0 +1,7 @@
+{
+  "name": "TallerPro AI",
+  "description": "Intelligent Auto Body Shop Management System using Gemini for vehicle identification and damage assessment.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
