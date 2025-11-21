@@ -30,21 +30,27 @@ export const ChatAssistant: React.FC = () => {
     setIsLoading(true);
 
     try {
-      const { text, sources } = await sendAssistantMessage(userMsg.text, useSearch);
-      
-      // Defensive coding: Ensure sources is strictly typed and nulls are removed
-      // This fixes the build error even if the service returns mixed types
-      const cleanSources = Array.isArray(sources) 
-        ? sources.filter((s): s is { uri: string; title: string } => s !== null && typeof s === 'object') 
-        : undefined;
+  const { text, sources } = await sendAssistantMessage(userMsg.text, useSearch);
+  
+  // Filtra nulls y asegura el tipo correcto
+  const cleanSources = sources && Array.isArray(sources) 
+    ? sources.filter((s): s is { uri: string; title: string } => 
+        s !== null && 
+        typeof s === 'object' && 
+        'uri' in s && 
+        'title' in s &&
+        typeof s.uri === 'string' &&
+        typeof s.title === 'string'
+      )
+    : undefined;
 
-      const botMsg: ChatMessage = { 
-        id: uuidv4(), 
-        role: 'model', 
-        text, 
-        sources: cleanSources
-      };
-      setMessages(prev => [...prev, botMsg]);
+  const botMsg: ChatMessage = { 
+    id: uuidv4(), 
+    role: 'model', 
+    text, 
+    sources: cleanSources
+  };
+  setMessages(prev => [...prev, botMsg]);
     } catch (error) {
       setMessages(prev => [...prev, { id: uuidv4(), role: 'model', text: 'Lo siento, hubo un error al conectar con el servicio.' }]);
     } finally {
