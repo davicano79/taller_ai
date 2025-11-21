@@ -219,7 +219,7 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose, settings, onSa
                 className="px-4 py-2 bg-indigo-100 text-indigo-700 font-bold rounded shadow hover:bg-indigo-200 transition-all flex items-center justify-center"
                 title="Descargar datos existentes de Firebase"
               >
-                <DownloadCloud className="mr-2" size={18} />
+                <Download className="mr-2" size={18} />
                 Importar Datos
               </button>
 
