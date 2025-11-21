@@ -144,9 +144,10 @@ export const sendAssistantMessage = async (message: string, useSearch: boolean =
     // Extract grounding metadata if available
     const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
     
+    // FIX: Explicit type predicate ensures TypeScript knows this array contains no nulls
     const sources = groundingChunks
       .map((chunk: any) => chunk.web ? { uri: chunk.web.uri, title: chunk.web.title } : null)
-      .filter((item: any) => item !== null);
+      .filter((item: any): item is { uri: string; title: string } => item !== null);
 
     return { text, sources };
   } catch (error) {
