@@ -127,7 +127,6 @@ export const sendAssistantMessage = async (message: string, useSearch: boolean =
   const ai = getAiClient();
   
   const modelName = useSearch ? "gemini-2.5-flash" : "gemini-3-pro-preview";
-  
   const tools = useSearch ? [{ googleSearch: {} }] : undefined;
 
   try {
@@ -141,13 +140,20 @@ export const sendAssistantMessage = async (message: string, useSearch: boolean =
     });
     
     const text = response.text || "No se pudo generar respuesta.";
-    // Extract grounding metadata if available
     const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
     
-    // Fix: Explicitly cast and filter to remove nulls, ensuring TypeScript safety
+    // ✅ Filtra nulls correctamente y asegura el tipo
     const sources = groundingChunks
-      .map((chunk: any) => chunk.web ? { uri: chunk.web.uri, title: chunk.web.title } : null)
-      .filter((item: any) => item !== null) as { uri: string; title: string }[];
+      .map((chunk: any) => {
+        if (chunk.web && chunk.web.uri && chunk.web.title) {
+          return { 
+            uri: String(chunk.web.uri), 
+            title: String(chunk.web.title) 
+          };
+        }
+        return null;
+      })
+      .filter((item): item is { uri: string; title: string } => item !== null);
 
     return { text, sources };
   } catch (error) {
