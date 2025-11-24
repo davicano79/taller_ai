@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, Type, HarmCategory, HarmBlockThreshold } from "@google/genai";
 
 // Helper to get API Key
 const getAiClient = () => {
@@ -17,12 +17,20 @@ const cleanAndParseJSON = (text: string) => {
     return JSON.parse(cleanText);
   } catch (error) {
     console.error("Failed to parse JSON from Gemini:", text);
-    throw new Error("La respuesta de la IA no tiene un formato válido.");
+    throw new Error(`La respuesta de la IA no tiene un formato válido: ${text.substring(0, 50)}...`);
   }
 };
 
+// Common safety settings to prevent blocking vehicle damage or license plates (PII)
+const safetySettings = [
+  { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+  { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+  { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+  { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+];
+
 // Function 1: Identify Car (License Plate, Make, Model)
-// Uses gemini-3-pro-preview for high visual accuracy
+// Uses gemini-2.5-flash for speed and robustness with OCR/JSON
 export const identifyCarFromImage = async (base64Image: string) => {
   const ai = getAiClient();
   
@@ -38,7 +46,7 @@ export const identifyCarFromImage = async (base64Image: string) => {
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-pro-preview",
+      model: "gemini-2.5-flash", // Switched to Flash for better production stability
       contents: {
         parts: [
           { inlineData: { mimeType: "image/jpeg", data: base64Image } },
@@ -47,6 +55,7 @@ export const identifyCarFromImage = async (base64Image: string) => {
       },
       config: {
         responseMimeType: "application/json",
+        safetySettings: safetySettings,
         responseSchema: {
           type: Type.OBJECT,
           properties: {
@@ -63,14 +72,16 @@ export const identifyCarFromImage = async (base64Image: string) => {
     const text = response.text;
     if (!text) throw new Error("No response from Gemini");
     return cleanAndParseJSON(text);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error identifying car:", error);
-    throw error;
+    // Throw the raw message to help debugging in UI
+    throw new Error(error.message || "Error desconocido en Gemini");
   }
 };
 
 // Function 2: Analyze Damage
-// Uses thinkingBudget for complex reasoning about parts and damage
+// Uses gemini-2.5-flash which also supports thinking, or fall back to 3-pro if deep reasoning needed.
+// Flash is generally better for speed.
 export const analyzeDamageFromImage = async (base64Image: string) => {
   const ai = getAiClient();
 
@@ -85,7 +96,7 @@ export const analyzeDamageFromImage = async (base64Image: string) => {
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-pro-preview",
+      model: "gemini-3-pro-preview", // Keeping Pro for deep damage analysis
       contents: {
         parts: [
           { inlineData: { mimeType: "image/jpeg", data: base64Image } },
@@ -94,7 +105,8 @@ export const analyzeDamageFromImage = async (base64Image: string) => {
       },
       config: {
         responseMimeType: "application/json",
-        thinkingConfig: { thinkingBudget: 32768 }, // High thinking budget for detailed analysis
+        thinkingConfig: { thinkingBudget: 1024 }, // Reduced budget to ensure it doesn't timeout, just enough for reasoning
+        safetySettings: safetySettings,
         responseSchema: {
           type: Type.OBJECT,
           properties: {
@@ -115,9 +127,9 @@ export const analyzeDamageFromImage = async (base64Image: string) => {
     const text = response.text;
     if (!text) throw new Error("No response from Gemini");
     return cleanAndParseJSON(text);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error analyzing damage:", error);
-    throw error;
+    throw new Error(error.message || "Error analizando daños");
   }
 };
 
@@ -127,6 +139,7 @@ export const sendAssistantMessage = async (message: string, useSearch: boolean =
   const ai = getAiClient();
   
   const modelName = useSearch ? "gemini-2.5-flash" : "gemini-3-pro-preview";
+  
   const tools = useSearch ? [{ googleSearch: {} }] : undefined;
 
   try {
@@ -135,25 +148,19 @@ export const sendAssistantMessage = async (message: string, useSearch: boolean =
       contents: message,
       config: {
         tools: tools,
+        safetySettings: safetySettings,
         systemInstruction: "Eres un asistente útil para un Taller de Chapa y Pintura en España. Ayudas a encontrar códigos de pintura, procedimientos de reparación y recambios. Responde siempre en Español."
       }
     });
     
     const text = response.text || "No se pudo generar respuesta.";
+    // Extract grounding metadata if available
     const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
     
-    // ✅ Filtra nulls correctamente y asegura el tipo
+    // Fix: Explicitly cast and filter to remove nulls, ensuring TypeScript safety
     const sources = groundingChunks
-      .map((chunk: any) => {
-        if (chunk.web && chunk.web.uri && chunk.web.title) {
-          return { 
-            uri: String(chunk.web.uri), 
-            title: String(chunk.web.title) 
-          };
-        }
-        return null;
-      })
-      .filter((item): item is { uri: string; title: string } => item !== null);
+      .map((chunk: any) => chunk.web ? { uri: chunk.web.uri, title: chunk.web.title } : null)
+      .filter((item: any) => item !== null) as { uri: string; title: string }[];
 
     return { text, sources };
   } catch (error) {

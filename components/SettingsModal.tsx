@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AppSettings, FirebaseConfig } from '../types';
-import { Save, X, Database, AlertCircle, Wifi, Flame, HelpCircle, RefreshCw, Download } from 'lucide-react';
+import { Save, X, Database, AlertCircle, Wifi, Flame, HelpCircle, RefreshCw, DownloadCloud } from 'lucide-react';
 import { syncWithFirebase } from '../services/firebaseService';
 import { ToastType } from './Toast';
 
@@ -219,7 +219,7 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose, settings, onSa
                 className="px-4 py-2 bg-indigo-100 text-indigo-700 font-bold rounded shadow hover:bg-indigo-200 transition-all flex items-center justify-center"
                 title="Descargar datos existentes de Firebase"
               >
-                <Download className="mr-2" size={18} />
+                <DownloadCloud className="mr-2" size={18} />
                 Importar Datos
               </button>
 

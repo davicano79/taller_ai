@@ -3,7 +3,7 @@ import { ImageUploader } from './ImageUploader';
 import { identifyCarFromImage } from '../services/geminiService';
 import { CarDetails, Job, JobStatus } from '../types';
 import { Spinner } from './Spinner';
-import { ArrowRight, CheckCircle, Keyboard, RefreshCcw, Car } from 'lucide-react';
+import { ArrowRight, CheckCircle, Keyboard, RefreshCcw, Car, Camera } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 
 interface Props {
@@ -25,8 +25,15 @@ export const CarIntakeTab: React.FC<Props> = ({ onJobCreated, switchToDamageTab 
     try {
       const details = await identifyCarFromImage(base64);
       setCarDetails(details);
-    } catch (err) {
-      setError("No se pudo identificar el coche. Intenta con otra foto más clara o ingresa los datos manualmente.");
+    } catch (err: any) {
+      console.error(err);
+      // Show the actual error message to help debug "Safety" or "Quota" issues
+      const msg = err.message || "Error desconocido";
+      if (msg.includes("SAFETY")) {
+        setError("La IA bloqueó la imagen por seguridad (posible matrícula visible). Intenta manual.");
+      } else {
+        setError(`No se pudo identificar: ${msg}. Ingresa datos manualmente.`);
+      }
     } finally {
       setLoading(false);
     }
@@ -39,7 +46,15 @@ export const CarIntakeTab: React.FC<Props> = ({ onJobCreated, switchToDamageTab 
       model: '',
       color: ''
     });
-    setCurrentImage(null);
+    // We reset current image so user can add one manually if they want, 
+    // or we could keep the failed one if we wanted to be smarter, but standard is reset.
+    setCurrentImage(null); 
+    setError(null);
+  };
+
+  const handleManualPhoto = (base64: string) => {
+    // Just set the image without running AI analysis
+    setCurrentImage(base64);
     setError(null);
   };
 
@@ -123,8 +138,8 @@ export const CarIntakeTab: React.FC<Props> = ({ onJobCreated, switchToDamageTab 
       {/* ERROR STATE */}
       {error && !carDetails && (
         <div className="p-4 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-200 rounded-lg mb-4 border border-red-200 dark:border-red-800 animate-fade-in flex justify-between items-center">
-          <span>{error}</span>
-          <button onClick={() => setError(null)} className="font-bold hover:underline text-sm ml-3">OK</button>
+          <span className="text-sm">{error}</span>
+          <button onClick={() => setError(null)} className="font-bold hover:underline text-sm ml-3 shrink-0">OK</button>
         </div>
       )}
 
@@ -132,27 +147,31 @@ export const CarIntakeTab: React.FC<Props> = ({ onJobCreated, switchToDamageTab 
       {carDetails && !loading && (
         <div className="animate-fade-in-up">
           
-          {/* Context Header (Photo if exists, or Icon) */}
-          <div className="bg-gray-50 dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg p-4 mb-6 flex items-center">
-             {currentImage ? (
+          {/* Photo / Status Banner */}
+          {currentImage ? (
+             <div className="bg-gray-50 dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg p-4 mb-6 flex items-center">
                 <div className="h-16 w-24 mr-4 rounded overflow-hidden border border-gray-300 dark:border-slate-500 flex-shrink-0 bg-black">
                     <img src={`data:image/jpeg;base64,${currentImage}`} className="w-full h-full object-cover" alt="Ingreso" />
                 </div>
-             ) : (
-                <div className="h-16 w-16 mr-4 rounded-full bg-gray-200 dark:bg-slate-600 flex items-center justify-center text-gray-400 dark:text-gray-300 flex-shrink-0">
-                    <Car size={24} />
+                <div>
+                    <div className="flex items-center">
+                        <CheckCircle className="text-green-600 dark:text-green-400 mr-2 h-5 w-5" />
+                        <h3 className="text-lg font-bold text-green-800 dark:text-green-300">
+                           Foto Registrada
+                        </h3>
+                    </div>
+                    <p className="text-sm text-gray-500 dark:text-gray-300">La imagen se guardará con el ingreso.</p>
                 </div>
-             )}
-             <div>
-                 <div className="flex items-center">
-                    <CheckCircle className="text-green-600 dark:text-green-400 mr-2 h-5 w-5" />
-                    <h3 className="text-lg font-bold text-green-800 dark:text-green-300">
-                        {currentImage ? 'Vehículo Identificado' : 'Ingreso Manual'}
-                    </h3>
-                 </div>
-                 <p className="text-sm text-gray-500 dark:text-gray-300">Verifica los datos antes de continuar.</p>
              </div>
-          </div>
+          ) : (
+             <div className="mb-6 p-4 bg-blue-50 dark:bg-slate-700/50 rounded-lg border border-blue-100 dark:border-slate-600">
+                <div className="flex items-center mb-3">
+                    <Camera className="text-blue-500 mr-2" size={20} />
+                    <span className="text-sm font-bold text-blue-800 dark:text-blue-200">¿Falta la foto? Adjúntala aquí (Opcional)</span>
+                </div>
+                <ImageUploader onImageSelected={handleManualPhoto} label="Tomar Foto Manualmente" />
+             </div>
+          )}
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8">
             <div>
